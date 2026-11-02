@@ -4,7 +4,9 @@ import { io } from 'socket.io-client';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Actions from './components/Actions';
-import GameMap from './components/GameMap';
+import Scene from './components/3d/Scene';
+import GameMap3D from './components/3d/GameMap3D';
+import PlayerAvatar from './components/3d/PlayerAvatar';
 import { useLanguage } from './context/LanguageContext';
 import { Globe, Clock } from 'lucide-react';
 
@@ -99,17 +101,27 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans relative overflow-x-hidden">
-      {/* Dynamic Background */}
-      <div
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0 opacity-40 transition-opacity duration-1000"
-        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1588667634694-813d1bd6d38a?q=80&w=2070&auto=format&fit=crop')` }}
-      ></div>
 
-      {/* Vignette & Gritty Overlays */}
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-gray-950/80 to-black z-0 pointer-events-none"></div>
-      <div className="fixed inset-0 opacity-[0.03] z-0 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px)' }}></div>
+      {/* 3D Scene Background Layer (Replaces the 2D background when logged in) */}
+      {user ? (
+        <Scene>
+            <GameMap3D user={user} onAction={handleAction} />
+            <PlayerAvatar user={user} />
+        </Scene>
+      ) : (
+        <>
+            <div
+                className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0 opacity-40 transition-opacity duration-1000"
+                style={{ backgroundImage: `url('https://images.unsplash.com/photo-1588667634694-813d1bd6d38a?q=80&w=2070&auto=format&fit=crop')` }}
+            ></div>
+            <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-gray-950/80 to-black z-0 pointer-events-none"></div>
+            <div className="fixed inset-0 opacity-[0.03] z-0 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px)' }}></div>
+        </>
+      )}
 
-      <header className="relative z-10 p-4 bg-gray-900/90 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)] border-b border-gray-700/50 flex justify-between items-center px-8">
+      {/* Persistent UI overlay on top of 3D / 2D background */}
+      <div className="pointer-events-none absolute inset-0 z-10 flex flex-col">
+          <header className="p-4 bg-gray-900/90 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)] border-b border-gray-700/50 flex justify-between items-center px-8 pointer-events-auto">
         <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-md">
             {t('app_title')}
         </h1>
@@ -128,46 +140,61 @@ function App() {
             </div>
         )}
 
-        <div className="flex items-center gap-4">
-            <button
-                onClick={toggleLanguage}
-                className="flex items-center gap-1 text-gray-300 hover:text-white transition"
-            >
-                <Globe size={18} />
-                <span className="font-bold">{t('btn_language')}</span>
-            </button>
-
-            {user && (
-                <button onClick={handleLogout} className="text-sm bg-red-600/80 hover:bg-red-500 px-4 py-2 rounded-md transition font-semibold">
-                    {t('logout')}
+            <div className="flex items-center gap-4">
+                <button
+                    onClick={toggleLanguage}
+                    className="flex items-center gap-1 text-gray-300 hover:text-white transition"
+                >
+                    <Globe size={18} />
+                    <span className="font-bold">{t('btn_language')}</span>
                 </button>
+
+                {user && (
+                    <button onClick={handleLogout} className="text-sm bg-red-600/80 hover:bg-red-500 px-4 py-2 rounded-md transition font-semibold">
+                        {t('logout')}
+                    </button>
+                )}
+            </div>
+          </header>
+
+          <main className="container mx-auto p-4 flex flex-col items-center mt-8 flex-grow">
+            {message && (
+              <div className="fixed top-20 right-4 p-4 bg-gray-800 border-l-4 border-blue-500 text-white rounded shadow-2xl z-50 animate-pulse pointer-events-auto">
+                {message}
+              </div>
             )}
-        </div>
-      </header>
 
-      <main className="relative z-10 container mx-auto p-4 flex flex-col items-center mt-8">
-        {message && (
-          <div className="fixed top-20 right-4 p-4 bg-gray-800 border-l-4 border-blue-500 text-white rounded shadow-2xl z-50 animate-pulse">
-            {message}
-          </div>
-        )}
+            {!user ? (
+              <div className="pointer-events-auto w-full flex justify-center">
+                <Login onAuth={handleAuth} />
+              </div>
+            ) : (
+              /* HUD Overlay - Only render Dashboard and Actions over the 3D scene */
+              <div className="w-full max-w-7xl flex justify-between h-[80vh] gap-6 pointer-events-none">
+                {/* Left Side: Dashboard */}
+                <div className="w-[30%] min-w-[320px] pointer-events-auto">
+                  <div className="bg-gray-900/70 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-gray-700/50 h-full overflow-y-auto">
+                    <Dashboard user={user} />
+                  </div>
+                </div>
 
-        {!user ? (
-          <Login onAuth={handleAuth} />
-        ) : (
-          <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-3 bg-gray-800/60 backdrop-blur-xl p-6 rounded-2xl shadow-2xl border border-gray-700/50 h-[80vh] overflow-y-auto">
-              <Dashboard user={user} />
-            </div>
-            <div className="lg:col-span-5 bg-gray-800/60 backdrop-blur-xl p-6 rounded-2xl shadow-2xl border border-gray-700/50 h-[80vh] flex flex-col">
-              <GameMap user={user} onAction={handleAction} />
-            </div>
-            <div className="lg:col-span-4 bg-gray-800/60 backdrop-blur-xl p-6 rounded-2xl shadow-2xl border border-gray-700/50 h-[80vh] overflow-y-auto">
-              <Actions user={user} onAction={handleAction} />
-            </div>
-          </div>
-        )}
-      </main>
+                {/* Middle: Empty space to see the 3D Map (handled by pointer-events-none on parent) */}
+                <div className="flex-grow flex items-end justify-center pb-8 pointer-events-none">
+                     <div className="bg-black/50 backdrop-blur-sm px-6 py-2 rounded-full border border-gray-700 text-gray-300 font-mono text-sm shadow-xl">
+                         Click on a room in the 3D facility to move.
+                     </div>
+                </div>
+
+                {/* Right Side: Actions */}
+                <div className="w-[35%] min-w-[380px] pointer-events-auto">
+                  <div className="bg-gray-900/70 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-gray-700/50 h-full overflow-y-auto">
+                    <Actions user={user} onAction={handleAction} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+      </div>
     </div>
   );
 }
