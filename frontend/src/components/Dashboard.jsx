@@ -1,37 +1,95 @@
+import { Shield, Coins, Battery, Heart, Star, Home, Landmark, Sword } from 'lucide-react';
+import { motion } from 'framer-motion';
+
 function Dashboard({ user }) {
   const isPolice = user.role === 'police';
   const roomName = isPolice ? 'Break Room' : 'Cell';
   const roomLevel = isPolice ? user.break_room_level : user.cell_level;
 
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4 border-b border-gray-700 pb-2 flex justify-between items-center">
-        <span>{user.username}</span>
-        <span className={`text-sm px-2 py-1 rounded uppercase tracking-wide font-bold ${isPolice ? 'bg-blue-600' : 'bg-orange-600'}`}>
-          {user.role}
-        </span>
-      </h2>
+  const maxStamina = 100 + (roomLevel * (isPolice ? 20 : 10));
+  const maxHealth = 100;
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-700 p-3 rounded">
-          <p className="text-gray-400 text-sm">Stamina</p>
-          <p className="text-xl font-mono text-green-400">{user.stamina}</p>
+  const staminaPercent = Math.min((user.stamina / maxStamina) * 100, 100);
+  const healthPercent = Math.min((user.health / maxHealth) * 100, 100);
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-xl ${isPolice ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                {isPolice ? <Shield size={28} /> : <div className="w-7 h-7 flex items-center justify-center font-bold text-lg">P</div>}
+            </div>
+            <div>
+                <h2 className="text-2xl font-bold text-white">{user.username}</h2>
+                <p className={`text-sm uppercase tracking-wider font-semibold ${isPolice ? 'text-blue-400' : 'text-orange-400'}`}>
+                    Level {Math.floor(user.exp / 100) + 1} {user.role}
+                </p>
+            </div>
         </div>
-        <div className="bg-gray-700 p-3 rounded">
-          <p className="text-gray-400 text-sm">Money</p>
-          <p className="text-xl font-mono text-yellow-400">${user.money}</p>
+      </div>
+
+      <div className="space-y-6 flex-grow">
+        {/* Status Bars */}
+        <div className="space-y-4">
+            <div>
+                <div className="flex justify-between text-sm mb-1 text-gray-300">
+                    <span className="flex items-center gap-1"><Heart size={14} className="text-red-400" /> Health</span>
+                    <span>{user.health} / {maxHealth}</span>
+                </div>
+                <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${healthPercent}%` }}
+                        transition={{ duration: 0.5 }}
+                        className="h-full bg-gradient-to-r from-red-600 to-red-400"
+                    />
+                </div>
+            </div>
+            <div>
+                <div className="flex justify-between text-sm mb-1 text-gray-300">
+                    <span className="flex items-center gap-1"><Battery size={14} className="text-green-400" /> Stamina</span>
+                    <span>{user.stamina} / {maxStamina}</span>
+                </div>
+                <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${staminaPercent}%` }}
+                        transition={{ duration: 0.5 }}
+                        className="h-full bg-gradient-to-r from-green-600 to-green-400"
+                    />
+                </div>
+            </div>
         </div>
-        <div className="bg-gray-700 p-3 rounded">
-          <p className="text-gray-400 text-sm">Experience</p>
-          <p className="text-xl font-mono text-purple-400">{user.exp}</p>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50 hover:border-yellow-500/30 transition">
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-2"><Coins size={14} className="text-yellow-400"/> Cash</p>
+                <p className="text-2xl font-bold text-white">${user.money.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50 hover:border-blue-500/30 transition">
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-2"><Landmark size={14} className="text-blue-400"/> Bank</p>
+                <p className="text-2xl font-bold text-white">${user.bank.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50 hover:border-purple-500/30 transition">
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-2"><Star size={14} className="text-purple-400"/> EXP</p>
+                <p className="text-2xl font-bold text-white">{user.exp.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50 hover:border-gray-400/30 transition">
+                <p className="text-gray-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-2"><Home size={14} /> {roomName}</p>
+                <p className="text-2xl font-bold text-white">Lvl {roomLevel}</p>
+            </div>
         </div>
-        <div className="bg-gray-700 p-3 rounded">
-          <p className="text-gray-400 text-sm">{roomName} Lvl</p>
-          <p className="text-xl font-mono">{roomLevel}</p>
-        </div>
-        <div className="col-span-2 bg-gray-700 p-3 rounded">
-          <p className="text-gray-400 text-sm">Weapon</p>
-          <p className="text-xl capitalize">{user.weapon}</p>
+
+        {/* Weapon */}
+        <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-800 rounded-lg"><Sword size={20} className={user.weapon !== 'none' ? 'text-red-400' : 'text-gray-500'} /></div>
+                <div>
+                    <p className="text-gray-400 text-xs uppercase tracking-wider">Equipped Weapon</p>
+                    <p className="text-lg font-bold capitalize text-white">{user.weapon}</p>
+                </div>
+            </div>
         </div>
       </div>
     </div>

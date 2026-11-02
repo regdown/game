@@ -2,7 +2,11 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('./db');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_123';
 
 const app = express();
 app.use(cors());
@@ -18,42 +22,81 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  socket.on('login', ({ username, role }, callback) => {
-    // Basic auth logic - find or create user
-    db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
-      if (err) {
-        return callback({ error: err.message });
+  const generateToken = (userId) => {
+      return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: '7d' });
+  };
+
+  const verifyToken = (token) => {
+      try {
+          return jwt.verify(token, JWT_SECRET);
+      } catch (e) {
+          return null;
       }
-      if (row) {
-        // User exists
-        socket.userId = row.id;
-        socket.join(`user_${row.id}`);
-        callback({ user: row });
-      } else {
-        // Create user
-        const defaultRole = role === 'police' ? 'police' : 'prisoner';
-        db.run("INSERT INTO users (username, role) VALUES (?, ?)", [username, defaultRole], function(err) {
-          if (err) {
-            return callback({ error: err.message });
-          }
-          const newUserId = this.lastID;
-          db.get("SELECT * FROM users WHERE id = ?", [newUserId], (err, newUser) => {
-              if (err) {
-                  return callback({ error: err.message });
-              }
-              socket.userId = newUser.id;
-              socket.join(`user_${newUser.id}`);
-              callback({ user: newUser });
+  };
+
+  const safeUser = (user) => {
+      const { password, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+  }
+
+  socket.on('register', async ({ username, password, role }, callback) => {
+      if (!username || !password) return callback({ error: "Username and password required" });
+
+      db.get("SELECT * FROM users WHERE username = ?", [username], async (err, row) => {
+          if (row) return callback({ error: "Username already exists" });
+
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash(password, salt);
+          const selectedRole = role === 'police' ? 'police' : 'prisoner';
+
+          db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+          [username, hashedPassword, selectedRole], function(err) {
+              if (err) return callback({ error: err.message });
+
+              const newUserId = this.lastID;
+              db.get("SELECT * FROM users WHERE id = ?", [newUserId], (err, newUser) => {
+                  socket.userId = newUser.id;
+                  socket.join(`user_${newUser.id}`);
+                  const token = generateToken(newUser.id);
+                  callback({ user: safeUser(newUser), token, message: "Registration successful!" });
+              });
           });
-        });
-      }
-    });
+      });
+  });
+
+  socket.on('login', async ({ username, password }, callback) => {
+      if (!username || !password) return callback({ error: "Username and password required" });
+
+      db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
+          if (err || !user) return callback({ error: "Invalid username or password" });
+
+          const validPassword = await bcrypt.compare(password, user.password);
+          if (!validPassword) return callback({ error: "Invalid username or password" });
+
+          socket.userId = user.id;
+          socket.join(`user_${user.id}`);
+          const token = generateToken(user.id);
+          callback({ user: safeUser(user), token, message: "Login successful!" });
+      });
+  });
+
+  socket.on('auto_login', ({ token }, callback) => {
+      const decoded = verifyToken(token);
+      if (!decoded) return callback({ error: "Session expired. Please log in again." });
+
+      db.get("SELECT * FROM users WHERE id = ?", [decoded.id], (err, user) => {
+          if (err || !user) return callback({ error: "User not found" });
+
+          socket.userId = user.id;
+          socket.join(`user_${user.id}`);
+          callback({ user: safeUser(user), message: "Welcome back!" });
+      });
   });
 
   const emitUserUpdate = (userId) => {
       db.get("SELECT * FROM users WHERE id = ?", [userId], (err, user) => {
           if (!err && user) {
-              io.to(`user_${userId}`).emit('user_update', user);
+              io.to(`user_${userId}`).emit('user_update', safeUser(user));
           }
       });
   };
@@ -87,66 +130,109 @@ io.on('connection', (socket) => {
   socket.on('steal', (callback) => {
       if (!socket.userId) return callback({ error: "Not logged in" });
 
-      db.get("SELECT stamina, role FROM users WHERE id = ?", [socket.userId], (err, user) => {
+      db.get("SELECT stamina, health, role FROM users WHERE id = ?", [socket.userId], (err, user) => {
           if (err || !user) return callback({ error: "User not found" });
 
           if (user.stamina < 30) {
               return callback({ error: "Not enough stamina to steal" });
+          }
+          if (user.health <= 0) {
+              return callback({ error: "You are too weak! Rest to recover health." });
           }
 
           const isCaught = Math.random() < 0.4; // 40% chance to get caught
           const staminaCost = 30;
 
           if (isCaught) {
-              // Caught! Lose money, become prisoner if police
+              // Caught! Lose money, take damage, become prisoner if police
+              const damage = 25;
+              const moneyLoss = 100;
+
               db.run(
-                  "UPDATE users SET stamina = stamina - ?, money = MAX(0, money - 100), role = 'prisoner' WHERE id = ?",
-                  [staminaCost, socket.userId],
+                  "UPDATE users SET stamina = stamina - ?, money = MAX(0, money - ?), health = MAX(0, health - ?), role = 'prisoner' WHERE id = ?",
+                  [staminaCost, moneyLoss, damage, socket.userId],
                   (err) => {
                       if (err) return callback({ error: err.message });
                       emitUserUpdate(socket.userId);
-                      callback({ success: false, message: "You were caught stealing! You lost $100 and are now a prisoner." });
+                      callback({ success: false, message: `Busted! Lost $${moneyLoss}, took ${damage} dmg, and sent to prison.` });
                   }
               );
           } else {
               // Success! Gain money
-              const moneyGain = 100;
+              const moneyGain = Math.floor(Math.random() * 100) + 50; // Random gain between 50-150
               db.run(
                   "UPDATE users SET stamina = stamina - ?, money = money + ? WHERE id = ?",
                   [staminaCost, moneyGain, socket.userId],
                   (err) => {
                       if (err) return callback({ error: err.message });
                       emitUserUpdate(socket.userId);
-                      callback({ success: true, message: `You successfully stole $${moneyGain}!` });
+                      callback({ success: true, message: `Smooth criminal! Stole $${moneyGain}.` });
                   }
               );
           }
       });
   });
 
-  // Regenerate stamina over time (simulated via polling from client, or simple interval)
+  // Regenerate stamina and health
   socket.on('rest', (callback) => {
       if (!socket.userId) return callback({ error: "Not logged in" });
 
-      db.get("SELECT stamina, break_room_level, cell_level, role FROM users WHERE id = ?", [socket.userId], (err, user) => {
+      db.get("SELECT stamina, health, break_room_level, cell_level, role FROM users WHERE id = ?", [socket.userId], (err, user) => {
           if (err || !user) return callback({ error: "User not found" });
 
           const maxStamina = 100 + (user.role === 'police' ? user.break_room_level * 20 : user.cell_level * 10);
-          if (user.stamina >= maxStamina) {
-              return callback({ error: "Stamina is already full" });
+          const maxHealth = 100;
+
+          if (user.stamina >= maxStamina && user.health >= maxHealth) {
+              return callback({ error: "Stamina and Health are already full." });
           }
 
-          const healAmount = user.role === 'police' ? 30 + user.break_room_level * 5 : 20 + user.cell_level * 2;
+          const staminaHeal = user.role === 'police' ? 30 + user.break_room_level * 5 : 20 + user.cell_level * 2;
+          const healthHeal = 20;
 
           db.run(
-              "UPDATE users SET stamina = MIN(?, stamina + ?) WHERE id = ?",
-              [maxStamina, healAmount, socket.userId],
+              "UPDATE users SET stamina = MIN(?, stamina + ?), health = MIN(?, health + ?) WHERE id = ?",
+              [maxStamina, staminaHeal, maxHealth, healthHeal, socket.userId],
               (err) => {
                   if (err) return callback({ error: err.message });
                   emitUserUpdate(socket.userId);
-                  callback({ success: true, message: `You rested and gained stamina.` });
+                  callback({ success: true, message: `Rested: Recovered Stamina and Health.` });
               }
           );
+      });
+  });
+
+  socket.on('deposit', (amount, callback) => {
+      if (!socket.userId) return callback({ error: "Not logged in" });
+      const amt = parseInt(amount);
+      if (isNaN(amt) || amt <= 0) return callback({ error: "Invalid amount" });
+
+      db.get("SELECT money FROM users WHERE id = ?", [socket.userId], (err, user) => {
+          if (err || !user) return callback({ error: "User not found" });
+          if (user.money < amt) return callback({ error: "Not enough cash" });
+
+          db.run("UPDATE users SET money = money - ?, bank = bank + ? WHERE id = ?", [amt, amt, socket.userId], (err) => {
+              if (err) return callback({ error: err.message });
+              emitUserUpdate(socket.userId);
+              callback({ success: true, message: `Deposited $${amt} safely in the bank.` });
+          });
+      });
+  });
+
+  socket.on('withdraw', (amount, callback) => {
+      if (!socket.userId) return callback({ error: "Not logged in" });
+      const amt = parseInt(amount);
+      if (isNaN(amt) || amt <= 0) return callback({ error: "Invalid amount" });
+
+      db.get("SELECT bank FROM users WHERE id = ?", [socket.userId], (err, user) => {
+          if (err || !user) return callback({ error: "User not found" });
+          if (user.bank < amt) return callback({ error: "Not enough in bank" });
+
+          db.run("UPDATE users SET money = money + ?, bank = bank - ? WHERE id = ?", [amt, amt, socket.userId], (err) => {
+              if (err) return callback({ error: err.message });
+              emitUserUpdate(socket.userId);
+              callback({ success: true, message: `Withdrew $${amt} from the bank.` });
+          });
       });
   });
 
