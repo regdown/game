@@ -98,11 +98,18 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans bg-[url('/bg.png')] bg-cover bg-center bg-fixed">
-      {/* Dark overlay for better readability */}
-      <div className="absolute inset-0 bg-black/60 z-0"></div>
+    <div className="min-h-screen bg-gray-950 text-white font-sans relative overflow-x-hidden">
+      {/* Dynamic Background */}
+      <div
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0 opacity-40 transition-opacity duration-1000"
+        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1519782502844-3c87332fb453?q=80&w=2070&auto=format&fit=crop')` }}
+      ></div>
 
-      <header className="relative z-10 p-4 bg-gray-800/80 backdrop-blur-md shadow-lg border-b border-gray-700 flex justify-between items-center px-8">
+      {/* Vignette & Gritty Overlays */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-gray-950/80 to-black z-0 pointer-events-none"></div>
+      <div className="fixed inset-0 opacity-[0.03] z-0 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px)' }}></div>
+
+      <header className="relative z-10 p-4 bg-gray-900/90 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)] border-b border-gray-700/50 flex justify-between items-center px-8">
         <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-md">
             {t('app_title')}
         </h1>
