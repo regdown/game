@@ -102,7 +102,7 @@ function App() {
       {/* Dynamic Background */}
       <div
         className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0 opacity-40 transition-opacity duration-1000"
-        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1519782502844-3c87332fb453?q=80&w=2070&auto=format&fit=crop')` }}
+        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1588667634694-813d1bd6d38a?q=80&w=2070&auto=format&fit=crop')` }}
       ></div>
 
       {/* Vignette & Gritty Overlays */}
