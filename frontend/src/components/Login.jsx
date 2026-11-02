@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Key, User } from 'lucide-react';
 import { playSound } from '../utils/sounds';
+import { useLanguage } from '../context/LanguageContext';
 
 function Login({ onAuth }) {
+  const { t } = useLanguage();
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -23,12 +25,12 @@ function Login({ onAuth }) {
       className="bg-gray-800/80 backdrop-blur-xl p-8 rounded-2xl shadow-2xl border border-gray-700 w-full max-w-md"
     >
       <h2 className="text-3xl font-extrabold mb-8 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-        {isLogin ? 'Welcome Back' : 'Create Character'}
+        {isLogin ? t('login_welcome') : t('login_create')}
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium mb-2 text-gray-300">Username</label>
+          <label className="block text-sm font-medium mb-2 text-gray-300">{t('username')}</label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -43,7 +45,7 @@ function Login({ onAuth }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2 text-gray-300">Password</label>
+          <label className="block text-sm font-medium mb-2 text-gray-300">{t('password')}</label>
           <div className="relative">
             <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -59,21 +61,21 @@ function Login({ onAuth }) {
 
         {!isLogin && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-            <label className="block text-sm font-medium mb-2 text-gray-300">Starting Role</label>
+            <label className="block text-sm font-medium mb-2 text-gray-300">{t('role_start')}</label>
             <div className="grid grid-cols-2 gap-4">
                 <div
                     onClick={() => { playSound('click'); setRole('prisoner'); }}
                     className={`cursor-pointer border p-3 rounded-lg flex flex-col items-center gap-2 transition-all ${role === 'prisoner' ? 'border-orange-500 bg-orange-500/20' : 'border-gray-600 hover:border-gray-400'}`}
                 >
                     <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">P</div>
-                    <span className="text-sm font-bold text-orange-400">Prisoner</span>
+                    <span className="text-sm font-bold text-orange-400">{t('role_prisoner')}</span>
                 </div>
                 <div
                     onClick={() => { playSound('click'); setRole('police'); }}
                     className={`cursor-pointer border p-3 rounded-lg flex flex-col items-center gap-2 transition-all ${role === 'police' ? 'border-blue-500 bg-blue-500/20' : 'border-gray-600 hover:border-gray-400'}`}
                 >
                     <Shield size={32} className={role === 'police' ? 'text-blue-400' : 'text-gray-400'} />
-                    <span className="text-sm font-bold text-blue-400">Police</span>
+                    <span className="text-sm font-bold text-blue-400">{t('role_police')}</span>
                 </div>
             </div>
           </motion.div>
@@ -85,7 +87,7 @@ function Login({ onAuth }) {
           onClick={() => playSound('click')}
           className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-lg transform hover:-translate-y-0.5"
         >
-          {isLogin ? 'Enter City' : 'Join the Game'}
+          {isLogin ? t('btn_enter') : t('btn_join')}
         </button>
       </form>
 
@@ -94,7 +96,7 @@ function Login({ onAuth }) {
             onClick={() => { playSound('click'); setIsLogin(!isLogin); }}
             className="text-gray-400 hover:text-white transition-colors text-sm underline"
           >
-              {isLogin ? "Don't have an account? Register" : "Already have an account? Login"}
+              {isLogin ? t('toggle_register') : t('toggle_login')}
           </button>
       </div>
     </motion.div>

@@ -17,6 +17,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
         exp INTEGER DEFAULT 0,
         stamina INTEGER DEFAULT 100,
         health INTEGER DEFAULT 100,
+        strength INTEGER DEFAULT 10,
+        location TEXT DEFAULT 'cell',
         cell_level INTEGER DEFAULT 1,
         break_room_level INTEGER DEFAULT 1,
         weapon TEXT DEFAULT 'none'
